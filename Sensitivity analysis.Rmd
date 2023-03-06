@@ -1,0 +1,314 @@
+---
+title: "Análisis de Sensibilidad"
+author: "Ramón Molinero-Parejo"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **1. Introducción**
+
+La metodología propuesta se basa en una simplificación de los métodos de **Análisis de Sensibilidad Global** (GSA, por sus siglas en inglés *Global Sensitivity Analysis*) (Saltelli et al., 2000). No se introducen variaciones probabilísticas en los factores de entrada. En su lugar, se realiza una eliminación progresiva de los factores originales, con un diseño factorial completo, calculando el resultado del modelo para todas las combinaciones posibles de los factores de entrada.
+
+La comparación de los resultados espaciales obtenidos a partir de las distintas simulaciones permite determinar en qué difieren, evaluar su solidez, y analizar con facilidad las posibles implicaciones espaciales resultantes para la zona estudiada.
+
+Para evaluar los resultados del método, es necesario comparar entre sí los resultados de las simulaciones obtenidas. Esta evaluación se realiza comparando los mapas simulados obtenidos con el mapa simulado considerado de renferencia, es decir, el mapa simulado con todos los factores simultaneamente. La **Precisión Total** (OA, *Overall Accuracy*) es la métrica de comparación utilizada para observar el acuerdo de todas las parcelas en su conjunto. También se recomienda utilizar la **Precisión del Productor** (PA, *Produccer Accuracy*) para observar el acuerdo para cada clase por separado. Esta métrica nos indica la frecuencia con la que las características reales del mapa de referencia se muestran correctamente en el mapa simulado con *n* factores. Se calcula dividiendo el área coincidente de ambos mapas para  una única clase,  entre el área total del mapa de referencia de esa misma clase. Dado que este es un breve tutorial para aprender a aplicar la metodología de  GSA, únicamente se van a utilizar OA. Es posible replicar la metodología para los valores PA de cada clase sustituyendo los valores de acuerdo. 
+
+## 2. Modelo de simulación
+
+El modelo de simulación vectorial basado en autómatas celulares (LP-CA, por sus siglas en inglés **Land Parcel Cellular Automata**) calcula el potencial de transición P de una parcela i hacia un nuevo uso del suelo k en un tiempo determinado t. A través del producto de varios factores, se determina el uso del suelo que posee mayor potencial de transición, el cual será asignado a la parcela analizada. La fórmula es la siguiente:
+
+$$P_{i,k}^t = v \ \cdot \ A_i \cdot \ S_{i,k} \cdot \ N_{i,k,d}^t$$
+donde:
+
+- $P_t^{i,k}$ indica el potencial de transición de una parcela $i$, con un uso del suelo $k$ en un tiempo $t$
+
+- $V$ representa la aleatoriedad o factor estocástico $(X_1)$
+
+- $A_i$ representa la accesibilidad $(X_2)$
+
+- $S_{i,k}$ representa la aptitud $(X_3)$
+
+- $N_{i,k,\ d}^t$ representa la Vecindad de una parcela $i$, con un uso del suelo $k$, dentro de una distancia $d$, en un tiempo $t$ $(X_5)$
+
+
+## 3. Análisis de sensibilidad global
+
+Partimos de que el resultado del **modelo LP-CA** es una función de los factores implementados. En nuestro caso tenemos cuatro factores. Sea un modelo Y, el resultado de:
+$$Y = f(X) = f(X_1, \ X_2, \ X_3, \ X_4)$$
+La varianza de los resultados del modelo Y puede explicarse como la suma de las varianzas de cada uno de los cinco factores $(X_1,\ X_2,\ X_3,\ X_4)$, más la suma de las varianzas de los factores dos a dos $(X_{1,2},\ X_{1,3},\ X_{1,4},\ X_{2,3},\ X_{2,4},\ X_{3,4})$, más la suma de las varianzas de los factores tres a tres $(X_{1,2,3},\ X_{1,2,4},\ X_{1,3,4},\ X_{2,3,4})$, más la suma de los factores cuatro a cuatro $(X_{1,2,3,4})$. Esta varianza la denominamos **Varianza Total** denotada normalmente como $V(Y)$.
+
+$$V(Y)=\ \sum_{i}{V_i \ + \ \sum_{i<j}{V_{i,j} \ \ + }\sum_{i<j<m}{V_{i,j,m} \ +\ldots \ + \ V_{1,2,\ \ \ldots k}\ }}$$
+donde:
+$$V_i=V[E(Y|X_i=\ x_i^\ast)]$$
+$$V_{ij}=V\left[E\left(Y\left|X_i=\ x_i^\ast,\ Y\right|X_j=\ x_j^\ast\right)\right]-\ V\left[E\left(Y\middle| X_i=\ x_i^\ast\right)\right]-\ V[E(Y|X_j=\ x_j^\ast)]$$
+y así sucesivamente. $E(Y|X_i = x_i^*)$ indica la expectativa de $Y$ condicional a que $X_i$ tenga un valor fijo $x_i^*$, y el operador $V[\bullet]$ indica la varianza condicional.
+
+Si dividimos cada varianza parcial $V_1,\ \ V_2,\ V_3,\ V_4$ y $V_5$ entre $V(Y)$ obtenemos los **Efectos Principales** o **Índices de Varianza de Primer Orden**. La interpretación de estos es sencilla. Por ejemplo $VX_1$ nos indica la proporción de varianza es explicada por el factor de aleatoriedad por sí mismo. El índice de sensibilidad de primer orden $S_i$ para el factor $X_i$ se define como:
+$$S_i=\ V_i\ /\ V(Y)$$
+Con el resto de índices ocurre lo mismo. Si dividimos $V_{1,2}$ entre $V(Y)$ nos da la proporción de varianza explicada por la interacción del factor de aleatoriedad $(X_1)$ con el factor de accesibilidad $(X_2)$ (y viceversa).
+Para los Índices totales, basta con sumar estas varianzas. Por ejemplo, en el caso del factor de aleatoriedad $(X_1)$, deberemos sumar las varianzas que incluyan este factor en su combinación (subíndice 1) de $V_1,V_{1,2},\ V_{1,3},\ V_{1,4},\ V_{1,2,3},\ V_{1,2,4},\ V_{1,3,4},\ V_{1,2,3,4}$ teniendo así el efecto total del factor de aleatoriedad $(X_1)$.
+
+## 4. Aplicación de la metodología
+
+Para analizar en qué medida influye cada uno de los factores, se deben generar todas las combinaciones posibles de factores en el modelo LP-CA. Para ello, vamos a generar una matriz donde se muestren todas las combinaciones posibles, donde 1 indica presencia del factor $X_n$ y 0 indica ausencia del factor $X_n$ durante la ejecución del modelo.
+
+```{r}
+# matriz binaria
+n <- 4                                    #número máximo de factores utilizados
+df <- expand.grid(rep(list(0:1), n))      #creación de la matriz con las combinaciones
+colnames(df) <- c('X1', 'X2', 'X3', 'X4') #nombre de los factores (columnas)
+```
+
+La matriz de combinaciones obtenida es de gran utilidad para ejecutar los 15 modelos (16 - 1 ya que la combinación 1 no se ha de generar al no implicar ningún factor en ella) de las posibles combinaciones de factores. Para este ejemplo únicamente se van a utilizar los valores de OA. Tras ejecutar los 15 modelos, recopilaremos los resultados de comparar la simulación obtenida del modelo de referencia (aquel que implica todos los factores: $vASN$) con cada una de las simulaciones obtenidas del cada modelo restante. En este sentido, el modelo $Y1$, que no utiliza ningún factor, reportará un valor de OA de 0.00 %, mientras que el modelo $Y16$ reportará un valor de OA de 100.00 %, ya que $Y16$ tambien es el modelo de referencia, y se compara con sí mismo.
+
+Vamos a utilizar los siguientes valores de OA como ejemplo y los vamos a unir a nuestra tabla con las 16 combinaciónes posibles:
+
+```{r, warning=FALSE, message=FALSE}
+# valores de precisión total (OA)
+OA <- c(0.00, 64.55, 6.58, 52.49, 82.78, 78.29, 76.17, 73.76, 
+        95.79, 94.36, 95.40, 94.88, 97.95, 98.02, 96.08, 100.00)
+
+# unión por columnas
+df['OA'] <- OA
+```
+Los resultados deberían mostrar una tabla como la que se muestra a continuación (**Tabla 1**). Ahora, ya tenemos los datos necesarios para realizar el **GSA**. Recuerda que estos valores deben ser sustituidos por los obtenidos de comparar la simulación de referncia ($vASN$) con cada combinación simulada (p.ej: $v$, $AN$, $vAN$, etc.).
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+modelos = c('$Nulo$','$X_1$','$X_2$','$X_{12}$','$X_3$','$X_{13}$','$X_{23}$','$X_{123}$','$X_{4}$','$X_{14}$','$X_{24}$','$X_{124}$','$X_{34}$','$X_{134}$','$X_{234}$','$X_{1234}$')
+df.print <- cbind(modelos, df)
+knitr::kable(df.print, col.names = c('Modelo','$X_1$', '$X_2$', '$X_3$', '$X_4$', 'Precisión total'),
+             caption = 'Combinaciones de factores para el modelo LP-CA.')
+```
+
+En primer lugar calculamos la media ($\bar{x}$) para posteriormente obtener la varianza $V(Y)$ del conjunto de modelos (16). La función *var()* de R calcula la variancia utilizando la siguiente fórmula:
+
+$$s^2 =  \sum{(x - \bar{x})^2} \ / \ n - 1$$
+Esta fórmula se aplica generalmente para muestras de datos. Sin embargo, dado que no estamos utilizando una muestra, sino el conjunto de datos total, es decir, lo que se denomina población, podemos generar una nueva función que sustituya $n -1$ por $n$. Además, para el cálculo de la varianza parcial en los próximos cálculos necesarios para la obtención de los efectos principales, se utilizará la media total de todos los modelos y no la media del cojunto analizado.
+
+$${\sigma}^2 =  \sum{(x - \bar{x})^2} \ / \ n$$
+
+La función es la siguiente:
+
+```{r, warning=FALSE, message=FALSE}
+# nueva varianza
+new.var <- function(x){
+  x = as.numeric(x)
+  x = na.omit(x)
+  m = m.y
+  return(sum((x - m)**2, na.rm = TRUE) / length(x))
+}
+```
+
+Ahora podemos calcular la precisión total media de los 16 modelos con la función *mean()*, así como la varianza, utilizando la nueva función *new.var()* que hemos creado.
+
+```{r, warning=FALSE, message=FALSE}
+# estadísticas
+m.y <- mean(df$OA)     #media
+v.y <- new.var(df$OA)  #varianza
+```
+
+Sobre el marco de datos vamos a crear una nueva columna que denominaremos *n.OA*, donde vamos a almacenar los efectos principales calculados para cada modelo. Desde los efectos de primer orden, hasta los de cuarto orden.
+
+```{r, warning=FALSE, message=FALSE}
+# creación de nueva columna
+df['n.OA'] = 0
+```
+
+Los efectos de primer orden son los más sencillos de calcular. En primer lugar, debemos calcular la varianza parcial de cada factor individualmente. Posteriormente, dividimos la varianza parcial entre la varianza total, obteniendo así el **Efecto principal** o **Índice de varianza de primer orden** del factor $X_1$. Los pasos a seguir son:
+
+1. Cálculo de la media de los modelos que cumplan: $X_1$ = 1. Recordemos que $X_1$ = 1 significa presencia de ese factor en el modelo y $X_1$ = 0 ausencia. $$E_1 = (X_1 + X_{12} + X_{13} + X_{14} + X_{123} + X_{124} + X_{134} + X_{1234}) \ / \ 8$$
+
+2. Cálculo de la media de los modelos que cumplan: $X_1$ = 0. $$E_2 = (X + X_2 + X_{3} + X_{4} + X_{23} + X_{24} + X_{34} + X_{234}) \ / \ 8$$
+
+3. Cálculo de la varianza parcial de ambos valores obtenidos. $$PV_1 = (E_1 - \bar{x})^2 + (E_2 - \bar{x})^2 \ / \ 2$$ donde $\bar{x}$ representa la media global para todos los modelos.
+
+4. Resta de las varianzas de los modelos de orden anterior (que compartan factor) a la varianza parcial obtenida para este modelo. En este caso, al no haber ordenes inferiores, no hay restar ningún valor. $$V_1 = PV_1$$
+
+5. División de la varianza del modelo $X_1$ entre la varianza total. $$S_1 = V_1 \ / \ V(Y)$$ donde $V(Y)$ representa la varianza global para todos los modelos.
+
+El resultado obtenido ($S_1$) se correspondería con el **Efecto principal** o **Índice de varianza de primer orden** del modelo $X_1$, en este caso, del factor de Aleatoriedad ($v$).
+
+**NOTA**: Las funciones creadas de primer, segundo y tercer orden calculan la media de OA para todos los modelos que cumplen la condición establecida (Ej.: modelos con presencia del factor $X_1$). Así, va calculando las medias para todas las condiciones y las agrega a una lista con la función *append()*. Por último, aplica la función *new.var()* al conjunto de valores existentes en esa lista. En el caso del cálculo de los Efectos de primer orden, esta funcion se corresponde con los pasos 1, 2 y 3. En ciertas lineas de código está asignado el paso al que hace referencia (#n).   
+
+```{r, warning=FALSE, message=FALSE}
+## Primer orden ####
+v.x <- function(x1){
+  m.x <- c()
+  m.x <- append(m.x, mean(df[df[x1] == 1,][[5]])) #1
+  m.x <- append(m.x, mean(df[df[x1] == 0,][[5]])) #2
+  var.x <- new.var(m.x)                           #3
+  return(var.x)
+}
+
+v1 <- v.x('X1'); df[2,6] <- v1 / v.y              #5 
+v2 <- v.x('X2'); df[3,6] <- v2 / v.y              #5
+v3 <- v.x('X3'); df[5,6] <- v3 / v.y              #5
+v4 <- v.x('X4'); df[9,6] <- v4 / v.y              #5
+```
+
+En cuanto a los **Índices de varianza de segundo orden**, el cálculo requiere más elaboración, ya que se deben tener en cuenta todas las combinaciones posibles (presencia / ausencia) de los dos factores implicados. Los pasos a seguir para del factor $X_{12}$ son:
+
+1. Cálculo de la media de los modelos que cumplan: $X_1$ = 1 | $X_2$ = 1. $$E_{1} = (X_{12} + X_{123} + X_{124} + X_{1234}) \ / \ 4$$
+2. Cálculo de la media de los modelos que cumplan: $X_1$ = 1 | $X_2$ = 0. $$E_{2} = (X_{1} + X_{13} + X_{14} + X_{134}) \ / \ 4$$
+3. Cálculo de la media de los modelos que cumplan: $X_1$ = 0 | $X_2$ = 1. $$E_{3} = (X_{2} + X_{23} + X_{24} + X_{234}) \ / \ 4$$
+4. Cálculo de la media de los modelos que cumplan: $X_1$ = 0 | $X_2$ = 0. $$E_{4} = (X + X_{3} + X_{4} + X_{34}) \ / \ 4$$
+
+5. Cálculo de la varianza parcial de ambos valores obtenidos. $$PV_{12} = ((E_1 - \bar{x})^2 + (E_2 - \bar{x})^2 + (E_3 - \bar{x})^2 + (E_4 - \bar{x})^2) \ / \ 4$$ donde $\bar{x}$ representa la media global para todos los modelos.
+
+6. Resta de las varianzas de los modelos de orden anterior (que compartan factor) a la varianza parcial obtenida para este modelo. $$V_{12} = PV_{12} - V_1 - V_2$$
+
+7. División de la varianza del modelo $X_{12}$ entre la varianza total. $$S_{12} = V_{12} \ / \ V(Y)$$ donde $V(Y)$ representa la varianza global para todos los modelos.
+
+El resultado obtenido ($S_{12}$) se correspondería con el **Efecto principal** o **Índice de varianza de segundo orden** del modelo $X_{12}$, en este caso, de la combinación de los factores Aleatoriedad ($v$) y Accesibilidad ($A$). 
+
+
+```{r, warning=FALSE, message=FALSE}
+## Segundo orden ####
+v.xx <- function(x1, x2){
+  m.xx <- c()
+  m.xx <- append(m.xx, mean(df[df[x1] == 1 & df[x2] == 1,][[5]])) #1
+  m.xx <- append(m.xx, mean(df[df[x1] == 1 & df[x2] == 0,][[5]])) #2
+  m.xx <- append(m.xx, mean(df[df[x1] == 0 & df[x2] == 1,][[5]])) #3
+  m.xx <- append(m.xx, mean(df[df[x1] == 0 & df[x2] == 0,][[5]])) #4
+  var.xx <- new.var(m.xx)                                         #5
+  return(var.xx)
+}
+
+pv12 <- v.xx('X1', 'X2'); v12 <- (pv12 - v1 - v2)                 #6   
+pv13 <- v.xx('X1', 'X3'); v13 <- (pv13 - v1 - v3)                 #6   
+pv14 <- v.xx('X1', 'X4'); v14 <- (pv14 - v1 - v4)                 #6    
+pv23 <- v.xx('X2', 'X3'); v23 <- (pv23 - v2 - v3)                 #6  
+pv24 <- v.xx('X2', 'X4'); v24 <- (pv24 - v2 - v4)                 #6   
+pv34 <- v.xx('X3', 'X4'); v34 <- (pv34 - v3 - v4)                 #6   
+
+df[4 ,6] <- v12 / v.y                                             #7
+df[6 ,6] <- v13 / v.y                                             #7
+df[10,6] <- v14 / v.y                                             #7
+df[7 ,6] <- v23 / v.y                                             #7
+df[11,6] <- v24 / v.y                                             #7
+df[13,6] <- v34 / v.y                                             #7
+```
+
+En cuanto a los **Índices de varianza de tercer orden**, el cálculo es muy similar a los anteriores, teniendo en cuenta todas las combinaciones posibles (presencia / ausencia) de los tres factores implicados. Los pasos a seguir para del factor $X_{123}$ son:
+
+1. Cálculo de la media de los modelos que cumplan: $X_1$ = 1 | $X_2$ = 1 | $X_3$ = 1. $$E_{1} = (X_{123} + X_{1234}) \ / \ 2$$
+2. Cálculo de la media de los modelos que cumplan: $X_1$ = 1 | $X_2$ = 1 | $X_3$ = 0. $$E_{2} = (X_{12} + X_{124}) \ / \ 2$$
+3. Cálculo de la media de los modelos que cumplan: $X_1$ = 1 | $X_2$ = 0 | $X_3$ = 1. $$E_{3} = (X_{13} + X_{134}) \ / \ 2$$
+4. Cálculo de la media de los modelos que cumplan: $X_1$ = 0 | $X_2$ = 1 | $X_3$ = 1. $$E_{4} = (X_{23} + X_{234}) \ / \ 2$$
+5. Cálculo de la media de los modelos que cumplan: $X_1$ = 1 | $X_2$ = 0 | $X_3$ = 0. $$E_{5} = (X_{1} + X_{14}) \ / \ 2$$
+6. Cálculo de la media de los modelos que cumplan: $X_1$ = 0 | $X_2$ = 1 | $X_3$ = 0. $$E_{6} = (X_{2} + X_{24}) \ / \ 2$$
+7. Cálculo de la media de los modelos que cumplan: $X_1$ = 0 | $X_2$ = 0 | $X_3$ = 1. $$E_{7} = (X_{3} + X_{34}) \ / \ 2$$
+8. Cálculo de la media de los modelos que cumplan: $X_1$ = 0 | $X_2$ = 0 | $X_3$ = 0. $$E_{8} = (X + X_4) \ / \ 2$$
+9. Cálculo de la varianza parcial de todos los valores obtenidos. $$PV_{123} = ((E_1 - \bar{x})^2 + (E_2 - \bar{x})^2 + (E_3 - \bar{x})^2 + (E_4 - \bar{x})^2 + (E_5 - \bar{x})^2 + (E_6 - \bar{x})^2 + (E_7 - \bar{x})^2 + (E_8 - \bar{x})^2) \ / \ 8$$ donde $\bar{x}$ representa la media global para todos los modelos.
+
+10. Resta de las varianzas de los modelos de orden anterior (que compartan factor) a la varianza parcial obtenida para este modelo. $$V_{123} = PV_{123} - V_{12} - V_{13} - V_{23} - V_1 - V_2 - V_3$$
+11. División de la varianza del modelo $X_{123}$ entre la varianza total. $$S_{123} = V_{123} \ / \ V(Y)$$ donde $V(Y)$ representa la varianza global para todos los modelos.
+
+El resultado obtenido ($S_{123}$) se correspondería con el **Efecto principal** o **Índice de varianza de tercer orden** del modelo $X_{123}$, en este caso, de la combinación de los factores Aleatoriedad ($v$), Accesibilidad ($A$) y Aptitud ($S$). 
+
+```{r, warning=FALSE, message=FALSE}
+## Tercer orden ####
+v.xxx <- function(x1, x2, x3){
+  m.xxx <- c()
+  m.xxx <- append(m.xxx, mean(df[df[x1] == 1 & df[x2] == 1 & df[x3] == 1,][[5]]))  #1
+  m.xxx <- append(m.xxx, mean(df[df[x1] == 1 & df[x2] == 1 & df[x3] == 0,][[5]]))  #2
+  m.xxx <- append(m.xxx, mean(df[df[x1] == 1 & df[x2] == 0 & df[x3] == 1,][[5]]))  #3
+  m.xxx <- append(m.xxx, mean(df[df[x1] == 0 & df[x2] == 1 & df[x3] == 1,][[5]]))  #4
+  m.xxx <- append(m.xxx, mean(df[df[x1] == 1 & df[x2] == 0 & df[x3] == 0,][[5]]))  #5
+  m.xxx <- append(m.xxx, mean(df[df[x1] == 0 & df[x2] == 1 & df[x3] == 0,][[5]]))  #6
+  m.xxx <- append(m.xxx, mean(df[df[x1] == 0 & df[x2] == 0 & df[x3] == 1,][[5]]))  #7
+  m.xxx <- append(m.xxx, mean(df[df[x1] == 0 & df[x2] == 0 & df[x3] == 0,][[5]]))  #8
+  var.xxx <- new.var(m.xxx)                                                        #9
+  return(var.xxx)
+}
+
+pv123 <- v.xxx('X1', 'X2', 'X3'); v123 <- (pv123 - v12 - v13 - v23 - v1 - v2 - v3) #10 
+pv124 <- v.xxx('X1', 'X2', 'X4'); v124 <- (pv124 - v12 - v14 - v24 - v1 - v2 - v4) #10
+pv134 <- v.xxx('X1', 'X3', 'X4'); v134 <- (pv134 - v13 - v14 - v34 - v1 - v3 - v4) #10   
+pv234 <- v.xxx('X2', 'X3', 'X4'); v234 <- (pv234 - v23 - v24 - v34 - v2 - v3 - v4) #10  
+
+df[8 ,6] <- v123 / v.y                                                             #11
+df[12,6] <- v124 / v.y                                                             #11
+df[14,6] <- v134 / v.y                                                             #11
+df[15,6] <- v234 / v.y                                                             #11
+```
+
+En cuanto a los **Índices de varianza de cuarto orden**, el cálculo es mas sencillo, ya que al involucrar el modelo con todos los factores (4), la varianza parcial es igual a la varianza total, por consiguiente, solo es necesario restar las varianzas parciales de los demás modelos. Los pasos a seguir para el modelo $X_{1234}$ son:
+
+1. Cálculo de la varianza parcial que, en este caso, es la varianza total. $$PV_{1234} = V(Y)$$ donde $V(Y)$ representa la varianza global para todos los modelos.
+
+2. Resta de la varianzas de los modelos de orden anterior que compartan factor a la varianza obtenida para este modelo, en este caso, todos. $$V_{1234} = PV_{1234} - V_{123} - V_{124} - V_{134} - V_{234} - V_{12} - V_{13} - V_{14} - V_{23} - V_{24} - V_{34} - V_1 - V_2 - V_3 - V_4$$
+3. División del valor anterior obtenido entre la varianza total. $$S_{1234} = V_{1234} \ / \ V(Y)$$
+
+El resultado obtenido ($S_{1234}$) se correspondería con el **Efecto principal** o **Índice de varianza de cuarto orden** del modelo $X_{1234}$, en este caso, de la combinación de todos los factores: Aleatoriedad ($v$), Accesibilidad ($A$), Aptitud ($S$) y Vecindad ($N$). 
+
+```{r, warning=FALSE, message=FALSE}
+## Cuarto orden ####
+pv1234 <- v.y;                                                           #1
+
+v1234 <- (pv1234 - 
+            v123 - v124 - v134 - v234 -           #tercer orden          #2
+            v12 - v13 - v14 - v23 - v24 - v34 -   #segundo orden         #2
+            v1 - v2 - v3 - v4)                    #cuarto orden          #2
+
+df[16,6] <- v1234 / v.y                                                  #3   
+```
+
+Por último, solo quedaría obtener los **Efectos Totales** para cada factor, es decir, la suma de todos los efectos principales de aquellos modelos que implique dicho factor. Como ejemplo, vamos a calcular el Efecto total del factor de Aleatoriedad ($S_{T1}$):
+
+$$S_{T1} \ =  \ S_1 + S_{12} + S_{13} + S_{14} + S_{123} + S_{124} + S_{134} + S_{1234}$$
+
+```{r, warning=FALSE, message=FALSE}
+## Efectos totales ####
+# almacenar efectos totales
+et.1 <- sum(df[6][df['X1'] == 1,]) #Factor 1. Aleatoriedad (v)
+et.2 <- sum(df[6][df['X2'] == 1,]) #Factor 2. Accesibilidad (A)
+et.3 <- sum(df[6][df['X3'] == 1,]) #Factor 3. Aptitud (S)
+et.4 <- sum(df[6][df['X4'] == 1,]) #Factor 4. Vecindad (N)
+```
+
+Podemos tambien realizar una comprobación para verificar que los cálculos son correctos. Para ello, vamos a sumar todos los efectos principales. La sumatoria deberá aproximarse a 1.
+
+```{r, warning=FALSE, message=FALSE}
+# comprobacion de la varianza
+print(paste0('Variance: ', sum(df[6])))
+```
+
+En la **tabla 2** observamos los efectos principales para los 16 modelos.
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+df['Modelo'] = c('Modelo nulo', 'v', 'A', 'vA', 'S', 'vS', 'AS', 'vAS', 'N', 'vN', 'AS', 'AN', 'vAN', 'vSN', 'ASN', 'vASN')
+
+knitr::kable(df[5:7], col.names = c('Precisión total', 'Efecto principal', 'Modelo'), caption = 'Efectos principales de los modelos.')
+```
+
+En la **tabla 3** observamos los efectos principales de los cuatro factores individualmente, los efectos totales y la diferencia de ambos para los 16 modelos. La diferencia $S_{Ti} - S_i$ es una medida del grado de interacción de un factor con cualquier otro factor de entrada. En la práctica, consideramos que esta diferencia es significativa si es superior a 0.2 puntos.
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+# nuevo df
+df.t <- data.frame(Factores = c('Aleatoriedad (*v*)', 
+                                'Accesibilidad (*A*)', 
+                                'Aptitud (*S*)', 
+                                'Vecindad (*N*)'))
+
+df.t['Efectos individuales'] <- c(df[2,6], df[3,6], df[5,6], df[9,6])
+df.t['Efectos totales'] <- c(et.1, et.2, et.3, et.4)
+df.t['Diferencia'] <- df.t[3] - df.t[2]
+
+knitr::kable(df.t, caption = 'Efectos totales de los modelos.')
+```
+## 4. Referencias
+
+Campolongo, F., Saltelli, A., & Tarantola, S. (2000). Sensitivity Anaysis as an Ingredient of Modeling. *Statistical Science*, 15(4), 377–395. [https://doi.org/10.1214/ss/1009213004](https://doi.org/10.1214/ss/1009213004)
+
+Crosetto, M., & Tarantola, S. (2001). Uncertainty and sensitivity analysis: tools for GIS-based model implementation. *International Journal of Geographical Information Science*, 15(5), 415–437. [https://doi.org/10.1080/13658810110053125](https://doi.org/10.1080/13658810110053125)
+
+Gómez‐Delgado, M., & Tarantola, S. (2006). GLOBAL sensitivity analysis, GIS and multi‐criteria evaluation for a sustainable planning of a hazardous waste disposal site in Spain. *International Journal of Geographical Information Science*, 20(4), 449–466. [https://doi.org/10.1080/13658810600607709](https://doi.org/10.1080/13658810600607709)
+
+Lilburne, L., & Tarantola, S. (2009). Sensitivity analysis of spatial models. *International Journal of Geographical Information Science*, 23(2), 151–168. [https://doi.org/10.1080/13658810802094995](https://doi.org/10.1080/13658810802094995)
+
+Saltelli, A., Annoni, P., Azzini, I., Campolongo, F., Ratto, M., & Tarantola, S. (2010). Variance based sensitivity analysis of model output. Design and estimator for the total sensitivity index. *Computer Physics Communications*, 181(2), 259–270. [https://doi.org/10.1016/j.cpc.2009.09.018](https://doi.org/10.1016/j.cpc.2009.09.018)
